@@ -109,6 +109,7 @@ test('assembleSubcommandPrompt: 预跑 context.mjs 并拼装对应 reference 与
   const assetDir = resolveDefaultAssetRoot()
   const tmp = mkdtempSync(join(tmpdir(), 'dsh-imp-prompt-'))
   try {
+    mkdirSync(join(tmp, '.git'), { recursive: true })
     writeFileSync(join(tmp, 'PRODUCT.md'), '# Test Product\n\n- Platform: web\n', 'utf8')
     const prompt = await assembleSubcommandPrompt({
       assetDir,
@@ -216,6 +217,7 @@ test('serve-question 远程代理与 collectWorkspaceOverview 闭环', async () 
   const assetDir = resolveDefaultAssetRoot()
   const tmp = mkdtempSync(join(tmpdir(), 'dsh-imp-overview-'))
   try {
+    mkdirSync(join(tmp, '.git'), { recursive: true })
     mkdirSync(join(tmp, '.impeccable', 'questions'), { recursive: true })
     mkdirSync(join(tmp, '.impeccable', 'surfaces'), { recursive: true })
     writeFileSync(join(tmp, 'PRODUCT.md'), '# Demo Product\n', 'utf8')
