@@ -117,12 +117,12 @@ test('Host 插件集成测试: SkillProvider + 斜杠命令 + 双阶段守卫 + 
     const loadedSkill = await registeredSkillProvider.get(skillList[0])
     assert.ok(!loadedSkill.content.includes('.gemini/skills/impeccable'))
 
-    // 2. 验证默认注册了 /impeccable 与 4 个默认 Pin 命令（/critique, /audit, /polish, /shape）
+    // 2. 验证宿主只注册顶层 /impeccable，不污染裸 /polish、/critique 等顶层命名空间
     assert.equal(registeredCommands.has('impeccable'), true)
-    assert.equal(registeredCommands.has('critique'), true)
-    assert.equal(registeredCommands.has('audit'), true)
-    assert.equal(registeredCommands.has('polish'), true)
-    assert.equal(registeredCommands.has('shape'), true)
+    assert.equal(registeredCommands.has('critique'), false)
+    assert.equal(registeredCommands.has('audit'), false)
+    assert.equal(registeredCommands.has('polish'), false)
+    assert.equal(registeredCommands.has('shape'), false)
 
     // 3. 验证 /impeccable detect 走 0-Token 即时卡片返回
     const mainCmd = registeredCommands.get('impeccable')
@@ -134,21 +134,21 @@ test('Host 插件集成测试: SkillProvider + 斜杠命令 + 双阶段守卫 + 
     assert.equal(detectRes.kind, 'success')
     assert.ok(detectRes.text.includes('Impeccable Detector'))
 
-    // 4. 验证 /impeccable pin bolder 热更新斜杠命令表
-    assert.equal(registeredCommands.has('bolder'), false)
+    // 4. 验证 /impeccable pin bolder 热更新全局 Pin 列表（以 /impeccable bolder 呈现）
     const pinRes = await mainCmd.handler({
       agent: mockAgent,
       rawInput: 'pin bolder',
       signal: new AbortController().signal,
     })
     assert.equal(pinRes.kind, 'success')
-    assert.equal(registeredCommands.has('bolder'), true)
+    assert.ok(pinRes.text.includes('/impeccable bolder'))
+    assert.equal(registeredCommands.has('bolder'), false)
 
-    // 5. 验证 /critique 子命令预组装并 steer 给 Agent
-    const critiqueCmd = registeredCommands.get('critique')
-    const critiqueRes = await critiqueCmd.handler({
+    // 5. 验证 /impeccable critique src/App.tsx 子命令预组装并 steer 给 Agent
+    const usedMainCmd = registeredCommands.get('impeccable')
+    const critiqueRes = await usedMainCmd.handler({
       agent: mockAgent,
-      rawInput: 'src/App.tsx',
+      rawInput: 'critique src/App.tsx',
       signal: new AbortController().signal,
     })
     assert.equal(critiqueRes.kind, 'success')

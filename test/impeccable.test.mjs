@@ -84,7 +84,15 @@ test('parseCommandInvocation: 区分 0-Token 诊断命令、Pin/Unpin 与 LLM �
     kind: 'pin',
     subcommand: 'bolder',
   })
+  assert.deepEqual(parseCommandInvocation('pin /impeccable bolder'), {
+    kind: 'pin',
+    subcommand: 'bolder',
+  })
   assert.deepEqual(parseCommandInvocation('unpin audit'), {
+    kind: 'unpin',
+    subcommand: 'audit',
+  })
+  assert.deepEqual(parseCommandInvocation('unpin /impeccable audit'), {
     kind: 'unpin',
     subcommand: 'audit',
   })

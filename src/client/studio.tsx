@@ -268,7 +268,7 @@ export function ImpeccableStudio({
     })
     const data = (await res.json()) as { ok: boolean; error?: string }
     if (data.ok) {
-      showNotice(formatText(t('studio.launchpad.steered'), { cmd: subcommand ? `/${subcommand}` : 'Impeccable' }))
+      showNotice(formatText(t('studio.launchpad.steered'), { cmd: subcommand ? `/impeccable ${subcommand}` : '/impeccable' }))
       try {
         openView?.('chat', '')
       } catch {
@@ -1095,7 +1095,7 @@ export function ImpeccableStudio({
                 return (
                   <div key={cmd.name} className="dsh-imp-card dsh-imp-cmd-card">
                     <div className="dsh-imp-row-between">
-                      <code className="dsh-imp-cmd-name">/{cmd.name}</code>
+                      <code className="dsh-imp-cmd-name">/impeccable {cmd.name}</code>
                       <div className="dsh-imp-pills">
                         <span className="dsh-imp-tag">{cmd.category}</span>
                         {isPinned ? (
@@ -1273,7 +1273,7 @@ export function ImpeccableSettingsSection({ t }: { t: Translate }): ReactElement
                   checked={checked}
                   onChange={() => togglePinned(cmd.name)}
                 />
-                <code>/{cmd.name}</code>
+                <code>/impeccable {cmd.name}</code>
                 <span className="dsh-imp-muted-sm">{cmd.descriptionZh}</span>
               </label>
             )

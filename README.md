@@ -42,9 +42,9 @@
   - 当本回合改过 UI 文件且准备收尾时，自动触发 `runStopCheck` 全量规则去重扫描（利用 `.impeccable/.hook-seen.json` 跳过第一阶段已报过的同位置问题）。
   - 若仍有漏网问题，自动通过 `agent.steer(...)` 注入一次汇总修复提醒；内置 `TurnStopGuard` **严格限制每个回合最多拦截 1 次**，绝不产生死循环。
 
-### 3. 混合加速斜杠命令与热 Pin（`ctx.commands`）
+### 3. 混合加速斜杠命令与热 Pin（`ctx.commands` + `ctx.inputTriggers`）
 
-插件始终注册主入口 `/impeccable`，并默认将最常用的 4 个命令 Pin 为顶层斜杠命令：`/critique`、`/audit`、`/polish`、`/shape`（可在设置页或用 `/impeccable pin <cmd>` 随时把其余子命令提升为顶层 `/<cmd>`，**保存即刻热生效，无需重启 DSH**）。
+插件始终注册主命令 `/impeccable`，并默认将最常用的 4 个子命令 Pin 到 `/` 菜单：`/impeccable critique`、`/impeccable audit`、`/impeccable polish`、`/impeccable shape`（可在设置页或用 `/impeccable pin <cmd>` 随时把其余子命令固定为 `/impeccable <cmd>` 快捷命令 chip，**保存即刻热生效，无需重启 DSH**）。
 
 #### 0-Token 宿主即时命令（不调用模型、不耗 Token）
 
@@ -53,12 +53,12 @@
 | `/impeccable doctor [--fix]` | 运行 `doctor.mjs`，检查 `PRODUCT.md` / `DESIGN.md` / `design.json` 漂移与过时配置，`--fix` 一键修复 |
 | `/impeccable detect [target]` | 运行静态 UI 反模式与 Token 漂移扫描，直接在会话内回显违例文件、行号与修复建议 |
 | `/impeccable hooks [status\|enable\|disable\|ignore-rule <id>\|ignore-file <glob>]` | 查看或修改当前项目的 `.impeccable/config.json` 守卫规则 |
-| `/impeccable pin <subcommand>` | 将指定子命令固定为顶层 `/<subcommand>` 快捷命令（热更新 `$DSH_HOME/impeccable.json`） |
-| `/impeccable unpin <subcommand>` | 从顶层 `/` 菜单移除指定快捷命令 |
+| `/impeccable pin <subcommand>` | 将指定子命令固定为 `/impeccable <subcommand>` 快捷斜杠命令（热更新 `$DSH_HOME/impeccable.json`） |
+| `/impeccable unpin <subcommand>` | 从 `/` 菜单移除指定的 `/impeccable <subcommand>` 快捷命令 |
 
 #### LLM 设计子命令（Host 预组装加速）
 
-执行任意设计子命令（如 `/critique` 或 `/impeccable typeset --target src/components/Header.tsx`）时，Host 会先在本地执行 `scripts/context.mjs` 收集当前工作区的设计系统摘要、守卫状态与最近评分，并自动把对应的 `reference/<subcommand>.md` 及（改代码类命令必带的）`reference/craft-floor.md` 一次性拼成结构化 Prompt 发送给模型，**省去模型前 2–3 轮调用工具读剧本的延迟与 Token**。
+执行任意设计子命令（如 `/impeccable critique` 或 `/impeccable typeset --target src/components/Header.tsx`）时，Host 会先在本地执行 `scripts/context.mjs` 收集当前工作区的设计系统摘要、守卫状态与最近评分，并自动把对应的 `reference/<subcommand>.md` 及（改代码类命令必带的）`reference/craft-floor.md` 一次性拼成结构化 Prompt 发送给模型，**省去模型前 2–3 轮调用工具读剧本的延迟与 Token**。
 
 | 分类 | 子命令 | 说明 |
 |---|---|---|
@@ -151,7 +151,7 @@ dsh plugin --profile web remove dsh-impeccable
 - `hookEnabled`：是否启用 `tools/post-execute` 改文件即时反模式守卫（默认 `true`）。
 - `stopDeepPass`：是否启用 `agent/turn-stopping` 回合结束深度扫描兜底（默认 `true`）。
 - `showConversationTab`：是否在会话顶栏挂载「设计」视图 Tab（默认 `true`）。
-- `pinnedCommands`：固定到顶层 `/` 菜单的子命令数组（默认 `["critique", "audit", "polish", "shape"]`）。
+- `pinnedCommands`：固定到 `/` 菜单为 `/impeccable <cmd>` 快捷命令的子命令数组（默认 `["critique", "audit", "polish", "shape"]`）。
 
 ### 2. 项目级配置（`<workspace>/.impeccable/config.json`）
 

@@ -387,12 +387,12 @@ export function parseCommandInvocation(rawInput: string, pinnedSubcommand?: stri
     return { kind: 'hooks', argv: argv.length > 0 ? argv : ['status'] }
   }
 
-  if (first === 'pin' && rest) {
-    return { kind: 'pin', subcommand: rest.split(/\s+/u)[0]!.toLowerCase() }
-  }
-
-  if (first === 'unpin' && rest) {
-    return { kind: 'unpin', subcommand: rest.split(/\s+/u)[0]!.toLowerCase() }
+  if ((first === 'pin' || first === 'unpin') && rest) {
+    const cleaned = rest.replace(/^\/?impeccable[\s-]+/iu, '').replace(/^\//u, '').trim()
+    const sub = cleaned.split(/\s+/u)[0]?.toLowerCase() ?? ''
+    if (sub) {
+      return { kind: first, subcommand: sub }
+    }
   }
 
   const normalizedSub = first === 'teach' ? 'init' : first

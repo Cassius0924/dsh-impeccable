@@ -308,8 +308,8 @@ export function apply(ctx: Context): void {
       return {
         kind: 'success',
         text: parsed.kind === 'pin'
-          ? `已将 /${targetCmd} 固定到顶层斜杠命令菜单。`
-          : `已从顶层斜杠命令菜单移除 /${targetCmd}。`,
+          ? `已将 /impeccable ${targetCmd} 固定到斜杠命令菜单。`
+          : `已从斜杠命令菜单移除 /impeccable ${targetCmd}。`,
       }
     }
 
@@ -323,7 +323,7 @@ export function apply(ctx: Context): void {
       steerText(inv.agent, prompt)
       return {
         kind: 'success',
-        text: `已启动 Impeccable /${parsed.subcommand}${parsed.args ? ` (${parsed.args})` : ''}（已预注入项目上下文与设计剧本）`,
+        text: `已启动 /impeccable ${parsed.subcommand}${parsed.args ? ` (${parsed.args})` : ''}（已预注入项目上下文与设计剧本）`,
       }
     }
 
@@ -353,7 +353,7 @@ export function apply(ctx: Context): void {
     unregisterAllCommands()
     if (!active) return
 
-    // 始终注册主命令 /impeccable
+    // 始终注册主命令 /impeccable（重注册同时向客户端广播 commands/change，刷新 Pin 列表）
     try {
       registeredCommandDisposers.push(
         commands.register({
@@ -365,24 +365,6 @@ export function apply(ctx: Context): void {
       )
     } catch (err) {
       ctx.logger.warn(`dsh-impeccable: 注册 /impeccable 失败: ${String(err)}`)
-    }
-
-    // 动态注册 Pin 快捷子命令
-    for (const subName of cfg.pinnedCommands) {
-      const meta = SUBCOMMAND_MAP.get(subName)
-      if (!meta) continue
-      try {
-        registeredCommandDisposers.push(
-          commands.register({
-            name: subName,
-            description: `[Impeccable] ${meta.descriptionZh}`,
-            input: { hint: meta.argumentHint || '[target]' },
-            handler: inv => executeImpeccableCommand(inv, subName),
-          }),
-        )
-      } catch (err) {
-        ctx.logger.warn(`dsh-impeccable: Pin 命令 /${subName} 已存在或冲突，跳过: ${String(err)}`)
-      }
     }
   }
 
