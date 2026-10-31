@@ -41,7 +41,7 @@ everything else in the run succeeds.
    workflow checks the release tag against).
 2. Tag and publish a GitHub Release from that commit, e.g.:
    ```sh
-   gh release create v0.1.0 --generate-notes
+   gh release create v0.1.1 --generate-notes
    ```
    (`gh release create` creates the tag too if it doesn't already exist.)
 3. The `release: published` event fires `.github/workflows/publish.yml`,
