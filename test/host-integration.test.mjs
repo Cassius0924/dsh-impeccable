@@ -28,6 +28,7 @@ test('Host 插件集成测试: SkillProvider + 斜杠命令 + 双阶段守卫 + 
   const tmpWs = mkdtempSync(join(tmpdir(), 'dsh-imp-ws-'))
   process.env.DSH_HOME = tmpHome
 
+  const effects = []
   try {
     mkdirSync(join(tmpWs, '.git'), { recursive: true })
     writeFileSync(join(tmpWs, 'PRODUCT.md'), '# Test Workspace Product\n', 'utf8')
@@ -35,7 +36,6 @@ test('Host 插件集成测试: SkillProvider + 斜杠命令 + 双阶段守卫 + 
     const registeredCommands = new Map()
     const registeredRoutes = new Map()
     const eventListeners = new Map()
-    const effects = []
     let registeredSkillProvider = null
     const steeredMessages = []
 
@@ -202,9 +202,8 @@ test('Host 插件集成测试: SkillProvider + 斜杠命令 + 双阶段守卫 + 
     assert.equal(decision.kind, 'accept')
     assert.ok(Array.isArray(decision.additionalContexts))
     assert.equal(decision.additionalContexts.length, 1)
-
-    for (const cleanup of effects) cleanup()
   } finally {
+    for (const cleanup of effects) cleanup()
     rmSync(tmpHome, { recursive: true, force: true })
     rmSync(tmpWs, { recursive: true, force: true })
   }

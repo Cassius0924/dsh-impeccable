@@ -718,7 +718,9 @@ export function apply(ctx: Context): void {
         if (filename !== null && filename !== targetName && !filename.startsWith(targetName)) return
         clearTimeout(timer)
         timer = setTimeout(() => { void reloadGlobalConfig() }, 300)
+        timer.unref?.()
       })
+      watcher.unref?.()
       watcher.on('error', err => ctx.logger.warn(`dsh-impeccable: watch 错误: ${String(err)}`))
     } catch { /* ignore */ }
 
