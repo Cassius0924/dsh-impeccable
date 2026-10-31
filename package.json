@@ -1,6 +1,6 @@
 {
   "name": "dsh-impeccable",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "DSH 的 Impeccable 前端视觉设计套件：内置 23 个设计剧本、原生双阶段 UI 反模式守卫、0-Token 诊断与预组装斜杠命令、以及会话顶栏「设计」可视化工作台",
   "keywords": [
     "dsh",

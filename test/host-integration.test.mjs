@@ -144,7 +144,7 @@ test('Host 插件集成测试: SkillProvider + 斜杠命令 + 双阶段守卫 + 
     assert.ok(pinRes.text.includes('/impeccable bolder'))
     assert.equal(registeredCommands.has('bolder'), false)
 
-    // 5. 验证 /impeccable critique src/App.tsx 子命令预组装并 steer 给 Agent
+    // 5. 验证 /impeccable critique src/App.tsx 用户气泡保持简短，Playbook 通过 agent/pre-step 作为 skill-invocation (form: 'instructions') 注入
     const usedMainCmd = registeredCommands.get('impeccable')
     const critiqueRes = await usedMainCmd.handler({
       agent: mockAgent,
@@ -153,7 +153,23 @@ test('Host 插件集成测试: SkillProvider + 斜杠命令 + 双阶段守卫 + 
     })
     assert.equal(critiqueRes.kind, 'success')
     assert.equal(steeredMessages.length, 1)
-    assert.ok(steeredMessages[0].content[0].text.includes('Playbook (critique.md)'))
+    assert.equal(steeredMessages[0].source.kind, 'user')
+    assert.equal(steeredMessages[0].content[0].text, '/impeccable-critique src/App.tsx')
+
+    const preStep = eventListeners.get('agent/pre-step')
+    assert.ok(preStep, '应当已注册 agent/pre-step 钩子')
+    const preStepDecision = await preStep(
+      { agent: mockAgent, messages: [steeredMessages[0]] },
+      async () => ({ kind: 'enter', messages: [steeredMessages[0]] }),
+    )
+    assert.equal(preStepDecision.kind, 'enter')
+    assert.equal(preStepDecision.messages.length, 2)
+    assert.deepEqual(preStepDecision.messages[1].source, {
+      kind: 'skill-invocation',
+      name: 'impeccable-critique',
+      form: 'instructions',
+    })
+    assert.ok(preStepDecision.messages[1].content[0].text.includes('Playbook (critique.md)'))
 
     // 6. 验证 HTTP API 路由 (/overview, /artifact, /config, /steer)
     const overviewRoute = registeredRoutes.get('/api/dsh-impeccable/overview')

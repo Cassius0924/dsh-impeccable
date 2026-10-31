@@ -54,13 +54,14 @@ interface AgentFace {
 interface CommandInvocation {
   agent: AgentFace
   rawInput: string
+  attachments?: readonly unknown[]
   signal: AbortSignal
 }
 
 interface CommandDef {
   name: string
   description: string
-  input?: { hint: string }
+  input?: { hint: string; attachments?: boolean }
   handler: (inv: CommandInvocation) => CommandResult | Promise<CommandResult>
 }
 
@@ -121,8 +122,26 @@ const jsonResponse = (status: number, body: unknown): Response =>
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
   })
 
-function steerText(agent: AgentFace, text: string): void {
-  agent.steer(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
+interface PendingPlaybookInjection {
+  name: string
+  text: string
+}
+
+function steerText(
+  agent: AgentFace,
+  text: string,
+  attachments: readonly unknown[] = [],
+  source: Record<string, unknown> = { kind: 'user' },
+): void {
+  agent.steer(
+    createUserMessage({
+      content: [
+        ...(attachments as never[]),
+        ...(text ? [{ type: 'text' as const, text }] : []),
+      ],
+      source: source as never,
+    }),
+  )
 }
 
 function getService<T>(ctx: Context, key: string): T | undefined {
@@ -187,6 +206,62 @@ export function apply(ctx: Context): void {
   let currentConfig: GlobalImpeccableConfig = { ...DEFAULT_GLOBAL_CONFIG }
   let registeredCommandDisposers: Array<() => void> = []
   let active = true
+
+  // 按 Agent 队列缓存待在下一步 agent/pre-step 注入的 Playbook 上下文（避免直接放进 source.kind === 'user' 刷屏聊天气泡）
+  const pendingPlaybooksByAgent = new WeakMap<object, PendingPlaybookInjection[]>()
+  const pendingPlaybooksById = new Map<string, PendingPlaybookInjection[]>()
+
+  const enqueuePlaybook = (agent: AgentFace, item: PendingPlaybookInjection): void => {
+    const agentId = typeof agent?.id === 'string' && agent.id ? agent.id : ''
+    if (agentId) {
+      const list = pendingPlaybooksById.get(agentId) ?? []
+      list.push(item)
+      pendingPlaybooksById.set(agentId, list)
+      return
+    }
+    if (agent && typeof agent === 'object') {
+      const list = pendingPlaybooksByAgent.get(agent) ?? []
+      list.push(item)
+      pendingPlaybooksByAgent.set(agent, list)
+    }
+  }
+
+  const drainPlaybooks = (agent: AgentFace | undefined): PendingPlaybookInjection[] => {
+    if (!agent) return []
+    const out: PendingPlaybookInjection[] = []
+    const agentId = typeof agent.id === 'string' && agent.id ? agent.id : ''
+    if (agentId) {
+      const byId = pendingPlaybooksById.get(agentId)
+      if (byId && byId.length > 0) {
+        out.push(...byId.splice(0))
+      }
+      pendingPlaybooksById.delete(agentId)
+    }
+    if (typeof agent === 'object') {
+      const byRef = pendingPlaybooksByAgent.get(agent)
+      if (byRef && byRef.length > 0) {
+        out.push(...byRef.splice(0))
+      }
+      pendingPlaybooksByAgent.delete(agent)
+    }
+    return out
+  }
+
+  const steerImpeccableSubcommand = (
+    agent: AgentFace,
+    opts: {
+      subcommand?: string
+      args?: string
+      attachments?: readonly unknown[]
+      playbookPrompt: string
+    },
+  ): void => {
+    const skillName = opts.subcommand ? `impeccable-${opts.subcommand}` : 'impeccable-design'
+    const trimmedArgs = (opts.args ?? '').trim()
+    const userText = trimmedArgs ? `/${skillName} ${trimmedArgs}` : `/${skillName}`
+    enqueuePlaybook(agent, { name: skillName, text: opts.playbookPrompt })
+    steerText(agent, userText, opts.attachments ?? [], { kind: 'user' })
+  }
 
   // 1. 注册内置 Impeccable Skill Provider
   const registerBundledSkill = (): (() => void) | undefined => {
@@ -320,7 +395,12 @@ export function apply(ctx: Context): void {
         subcommand: parsed.subcommand,
         args: parsed.args,
       })
-      steerText(inv.agent, prompt)
+      steerImpeccableSubcommand(inv.agent, {
+        subcommand: parsed.subcommand,
+        args: parsed.args,
+        attachments: inv.attachments,
+        playbookPrompt: prompt,
+      })
       return {
         kind: 'success',
         text: `已启动 /impeccable ${parsed.subcommand}${parsed.args ? ` (${parsed.args})` : ''}（已预注入项目上下文与设计剧本）`,
@@ -333,7 +413,11 @@ export function apply(ctx: Context): void {
       cwd: projectRoot,
       args: parsed.args,
     })
-    steerText(inv.agent, prompt)
+    steerImpeccableSubcommand(inv.agent, {
+      args: parsed.args,
+      attachments: inv.attachments,
+      playbookPrompt: prompt,
+    })
     return {
       kind: 'success',
       text: parsed.args
@@ -359,7 +443,7 @@ export function apply(ctx: Context): void {
         commands.register({
           name: 'impeccable',
           description: 'Impeccable 设计套件：/impeccable <subcommand|doctor|detect|hooks|pin|unpin> [target]',
-          input: { hint: '[subcommand] [target]' },
+          input: { hint: '[subcommand] [target]', attachments: true },
           handler: inv => executeImpeccableCommand(inv),
         }),
       )
@@ -397,6 +481,38 @@ export function apply(ctx: Context): void {
   applyGlobalConfig(currentConfig)
   void reloadGlobalConfig()
 
+  // 2.5 在 agent/pre-step 中将 Playbook 作为 skill-invocation (form: 'instructions') 注入，不污染用户聊天气泡
+  try {
+    ctx.on(
+      'agent/pre-step' as never,
+      (async (
+        payload: { agent?: AgentFace; messages?: unknown[]; signal?: AbortSignal },
+        next: () => Promise<{ kind: string; messages?: unknown[] }>,
+      ) => {
+        const decision = await next()
+        if (!decision || decision.kind === 'reject') return decision
+        const items = drainPlaybooks(payload?.agent)
+        if (items.length === 0) return decision
+        const injections = items.map(item =>
+          createUserMessage({
+            content: [{ type: 'text', text: item.text }],
+            source: {
+              kind: 'skill-invocation',
+              name: item.name,
+              form: 'instructions',
+            } as never,
+          }),
+        )
+        return {
+          ...decision,
+          messages: [...(decision.messages ?? payload?.messages ?? []), ...injections],
+        }
+      }) as never,
+    )
+  } catch (err) {
+    ctx.logger.warn(`dsh-impeccable: 挂载 agent/pre-step 失败: ${String(err)}`)
+  }
+
   // 3. 原生双阶段 Detector 守卫钩子
   try {
     ctx.on(
@@ -423,7 +539,7 @@ export function apply(ctx: Context): void {
           if (hookRes.emitted && hookRes.contextText) {
             const reminder = createUserMessage({
               content: [{ type: 'text', text: hookRes.contextText }],
-              source: { kind: 'user' },
+              source: { kind: 'dsh-impeccable', form: 'notice' } as never,
             })
             return {
               ...decision,
@@ -456,7 +572,10 @@ export function apply(ctx: Context): void {
             guard: turnStopGuard,
           })
           if (stopRes.emitted && stopRes.contextText) {
-            steerText(payload.agent, stopRes.contextText)
+            steerText(payload.agent, stopRes.contextText, [], {
+              kind: 'dsh-impeccable',
+              form: 'notice',
+            })
           }
         } catch (err) {
           ctx.logger.warn(`dsh-impeccable: turn-stopping 深度扫描异常（已忽略）: ${String(err)}`)
@@ -660,7 +779,11 @@ export function apply(ctx: Context): void {
       ...(subcommand ? { subcommand } : {}),
       args,
     })
-    steerText(agent, prompt)
+    steerImpeccableSubcommand(agent, {
+      ...(subcommand ? { subcommand } : {}),
+      args,
+      playbookPrompt: prompt,
+    })
     return jsonResponse(200, { ok: true, steered: true, subcommand: subcommand ?? 'general' })
   })
 
